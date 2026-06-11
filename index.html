@@ -1,0 +1,106 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>광주 분실물 찾기</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="app-header">
+      <p class="eyebrow">Gwangju Lost & Found</p>
+      <h1>광주 분실물 찾기</h1>
+      <p class="subtitle">잃어버린 물건과 주운 물건을 광주 지역별로 등록하고 확인하세요.</p>
+    </header>
+
+    <nav class="tab-menu" aria-label="게시판 메뉴">
+      <button class="tab-btn active" type="button" data-tab="lost-tab">분실물 찾기</button>
+      <button class="tab-btn" type="button" data-tab="found-tab">습득물 등록</button>
+      <button class="tab-btn" type="button" data-tab="board-tab">게시판 보기</button>
+    </nav>
+
+    <section id="lost-tab" class="tab-content active">
+      <h2>잃어버린 물건 등록</h2>
+      <form id="lostForm" class="panel-form">
+        <div class="form-group">
+          <label for="lostGu">분실 지역</label>
+          <div class="select-row">
+            <select id="lostGu" required>
+              <option value="">구 선택</option>
+            </select>
+            <select id="lostDong" required>
+              <option value="">동 선택</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="lostInfo">물건 설명 또는 상세 정보</label>
+          <input type="text" id="lostInfo" placeholder="예: 상무역 근처에서 검은색 지갑을 잃어버렸습니다." maxlength="120" required>
+        </div>
+
+        <div class="form-group">
+          <label for="lostReward">사례금</label>
+          <input type="number" id="lostReward" min="0" step="100" placeholder="100원 단위로 입력" required>
+        </div>
+
+        <button type="submit" class="submit-btn">등록하기</button>
+      </form>
+    </section>
+
+    <section id="found-tab" class="tab-content">
+      <h2>주운 물건 등록</h2>
+      <form id="foundForm" class="panel-form">
+        <div class="form-group">
+          <label for="foundGu">습득 지역</label>
+          <div class="select-row">
+            <select id="foundGu" required>
+              <option value="">구 선택</option>
+            </select>
+            <select id="foundDong" required>
+              <option value="">동 선택</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="foundType">분실물 종류</label>
+          <input type="text" id="foundType" placeholder="예: 스마트폰, 에어팟, 가방" maxlength="40" required>
+        </div>
+
+        <div class="form-group">
+          <label for="foundTitle">제목</label>
+          <input type="text" id="foundTitle" placeholder="게시글 제목 입력" maxlength="80" required>
+        </div>
+
+        <div class="form-group">
+          <label for="foundContent">상세 내용</label>
+          <textarea id="foundContent" rows="4" placeholder="습득한 물건의 특징과 보관 장소를 적어주세요." maxlength="500" required></textarea>
+        </div>
+
+        <button type="submit" class="submit-btn">등록하기</button>
+      </form>
+    </section>
+
+    <section id="board-tab" class="tab-content">
+      <div class="board-heading">
+        <h2>통합 게시판</h2>
+        <span id="statusText" class="status-text">Firebase 연결 대기 중</span>
+      </div>
+
+      <div class="board-filter" aria-label="게시글 필터">
+        <button type="button" class="filter-btn active" data-filter="all">전체</button>
+        <button type="button" class="filter-btn" data-filter="lost">분실</button>
+        <button type="button" class="filter-btn" data-filter="found">습득</button>
+      </div>
+
+      <div id="boardList" class="board-list">
+        <p class="empty-msg">등록된 게시글이 없습니다.</p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
