@@ -436,3 +436,73 @@ select:focus {
   }
 }
 
+
+
+.comment-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.comment-markers {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+}
+
+.author-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 0 3px rgba(31, 41, 51, 0.12);
+}
+
+.author-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: #ffffff;
+  background: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.comment-delete {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  border-radius: 6px;
+  color: var(--danger);
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.comment-delete:hover {
+  color: #ffffff;
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.comment-form input[type="password"] {
+  width: 100%;
+}
+
+@media (max-width: 620px) {
+  .comment-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .comment-delete {
+    width: 100%;
+  }
+}
+

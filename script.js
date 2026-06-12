@@ -13,7 +13,10 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-// Firebase 콘솔 > 프로젝트 설정 > 내 앱 > SDK 설정 및 구성에서 값을 복사해 넣으세요.
+// 진짜 관리자 권한은 Firebase Auth/Cloud Functions가 필요합니다.
+// 아래 값은 비워두면 관리자 삭제가 비활성화됩니다. 클라이언트 코드에 두는 관리자 비밀번호는 강한 보안이 아닙니다.
+const ADMIN_DELETE_PASSWORD_HASH = "";
+
 const firebaseConfig = {
   apiKey: "AIzaSyCUW991F28NzDdfzB4isy-2ahEz2DlY0aM",
   authDomain: "gwangju-lost-find.firebaseapp.com",
@@ -25,7 +28,7 @@ const firebaseConfig = {
 };
 
 const gwangjuDistricts = {
-  "동구": ["충장동", "동명동", "계림동", "산수동", "지산동", "서남동", "학동", "지원동"],
+  "동구": ["충장동", "동명동", "계림1동", "계림2동", "산수1동", "산수2동", "지산1동", "지산2동", "서남동", "학동", "학운동", "지원1동", "지원2동"],
   "서구": ["양동", "농성동", "광천동", "유덕동", "치평동", "상무동", "화정동", "서창동", "금호동", "풍암동", "동천동"],
   "남구": ["양림동", "방림동", "봉선동", "사직동", "월산동", "백운동", "주월동", "진월동", "효덕동", "송암동", "대촌동"],
   "북구": ["중흥동", "중앙동", "임동", "신안동", "용봉동", "운암동", "동림동", "우산동", "풍향동", "문화동", "문흥동", "두암동", "삼각동", "일곡동", "매곡동", "오치동", "석곡동", "건국동", "양산동", "신용동"],
@@ -152,6 +155,7 @@ async function addLostPost(event) {
   event.preventDefault();
 
   const reward = Number(document.getElementById("lostReward").value);
+  const password = document.getElementById("lostPassword").value.trim();
   const post = {
     kind: "lost",
     gu: elements.lostGu.value,
@@ -160,8 +164,13 @@ async function addLostPost(event) {
     reward
   };
 
-  if (!post.gu || !post.dong || !post.info || Number.isNaN(reward)) {
+  if (!post.gu || !post.dong || !post.info || Number.isNaN(reward) || !password) {
     alert("모든 항목을 입력해주세요.");
+    return;
+  }
+
+  if (password.length < 4) {
+    alert("삭제 비밀번호는 4자 이상 입력해주세요.");
     return;
   }
 
@@ -170,12 +179,13 @@ async function addLostPost(event) {
     return;
   }
 
-  await savePost(event.submitter, post, elements.lostForm, elements.lostGu, elements.lostDong);
+  await savePost(event.submitter, post, password, elements.lostForm, elements.lostGu, elements.lostDong);
 }
 
 async function addFoundPost(event) {
   event.preventDefault();
 
+  const password = document.getElementById("foundPassword").value.trim();
   const post = {
     kind: "found",
     gu: elements.foundGu.value,
@@ -185,15 +195,20 @@ async function addFoundPost(event) {
     content: document.getElementById("foundContent").value.trim()
   };
 
-  if (!post.gu || !post.dong || !post.type || !post.title || !post.content) {
+  if (!post.gu || !post.dong || !post.type || !post.title || !post.content || !password) {
     alert("모든 항목을 입력해주세요.");
     return;
   }
 
-  await savePost(event.submitter, post, elements.foundForm, elements.foundGu, elements.foundDong);
+  if (password.length < 4) {
+    alert("삭제 비밀번호는 4자 이상 입력해주세요.");
+    return;
+  }
+
+  await savePost(event.submitter, post, password, elements.foundForm, elements.foundGu, elements.foundDong);
 }
 
-async function savePost(button, post, form, guSelect, dongSelect) {
+async function savePost(button, post, password, form, guSelect, dongSelect) {
   if (!state.firestoreReady) {
     alert("Firebase 설정을 먼저 입력해주세요.");
     return;
@@ -203,8 +218,12 @@ async function savePost(button, post, form, guSelect, dongSelect) {
   button.textContent = "등록 중...";
 
   try {
+    const passwordHash = await hashText(password);
+
     await addDoc(state.postsRef, {
       ...post,
+      ownerPasswordHash: passwordHash,
+      authorKey: passwordHash,
       createdAt: serverTimestamp()
     });
 
@@ -224,7 +243,8 @@ function handleBoardClick(event) {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
 
-  const postId = button.closest(".card")?.dataset.postId;
+  const card = button.closest(".card");
+  const postId = card?.dataset.postId;
   if (!postId) return;
 
   if (button.dataset.action === "toggle-comments") {
@@ -233,6 +253,11 @@ function handleBoardClick(event) {
 
   if (button.dataset.action === "delete-post") {
     deletePost(postId);
+  }
+
+  if (button.dataset.action === "delete-comment") {
+    const commentId = button.closest(".comment-item")?.dataset.commentId;
+    if (commentId) deleteComment(postId, commentId);
   }
 }
 
@@ -293,11 +318,18 @@ function closeComments() {
 async function addComment(form) {
   const postId = form.dataset.postId;
   const input = form.querySelector("textarea");
+  const passwordInput = form.querySelector('input[name="commentPassword"]');
   const button = form.querySelector("button");
   const content = input.value.trim();
+  const password = passwordInput.value.trim();
 
-  if (!content) {
-    alert("댓글 내용을 입력해주세요.");
+  if (!content || !password) {
+    alert("댓글 내용과 삭제 비밀번호를 입력해주세요.");
+    return;
+  }
+
+  if (password.length < 4) {
+    alert("삭제 비밀번호는 4자 이상 입력해주세요.");
     return;
   }
 
@@ -305,8 +337,12 @@ async function addComment(form) {
   button.textContent = "등록 중...";
 
   try {
+    const passwordHash = await hashText(password);
+
     await addDoc(collection(state.db, "posts", postId, "comments"), {
       content,
+      ownerPasswordHash: passwordHash,
+      authorKey: passwordHash,
       createdAt: serverTimestamp()
     });
     form.reset();
@@ -328,13 +364,24 @@ async function deletePost(postId) {
   const post = state.posts.find((item) => item.id === postId);
   if (!post) return;
 
+  const password = prompt("게시글 삭제 비밀번호를 입력하세요.");
+  if (password === null) return;
+
+  const allowed = await canDeleteWithPassword(password, post.ownerPasswordHash);
+  if (!allowed) {
+    alert("비밀번호가 맞지 않습니다.");
+    return;
+  }
+
   const ok = confirm("이 게시글과 댓글을 삭제할까요?");
   if (!ok) return;
 
   try {
     const commentsRef = collection(state.db, "posts", postId, "comments");
     const commentsSnapshot = await getDocs(commentsRef);
-    await Promise.all(commentsSnapshot.docs.map((commentDoc) => deleteDoc(commentDoc.ref)));
+    await Promise.all(commentsSnapshot.docs.map(async (commentDoc) => {
+      await deleteDoc(commentDoc.ref);
+    }));
     await deleteDoc(doc(state.db, "posts", postId));
 
     if (state.selectedPostId === postId) {
@@ -344,6 +391,44 @@ async function deletePost(postId) {
     console.error(error);
     alert("삭제 중 오류가 발생했습니다. Firebase 권한을 확인해주세요.");
   }
+}
+
+async function deleteComment(postId, commentId) {
+  const comment = state.comments.find((item) => item.id === commentId);
+  if (!comment) return;
+
+  const password = prompt("댓글 삭제 비밀번호를 입력하세요.");
+  if (password === null) return;
+
+  const allowed = await canDeleteWithPassword(password, comment.ownerPasswordHash);
+  if (!allowed) {
+    alert("비밀번호가 맞지 않습니다.");
+    return;
+  }
+
+  try {
+    await deleteDoc(doc(state.db, "posts", postId, "comments", commentId));
+  } catch (error) {
+    console.error(error);
+    alert("댓글 삭제 중 오류가 발생했습니다. Firebase 권한을 확인해주세요.");
+  }
+}
+
+async function canDeleteWithPassword(password, ownerPasswordHash) {
+  if (!ownerPasswordHash) {
+    alert("이전 버전에서 작성된 글은 삭제 비밀번호 정보가 없어 앱에서 삭제할 수 없습니다.");
+    return false;
+  }
+
+  const inputHash = await hashText(password.trim());
+  return inputHash === ownerPasswordHash || Boolean(ADMIN_DELETE_PASSWORD_HASH && inputHash === ADMIN_DELETE_PASSWORD_HASH);
+}
+
+
+async function hashText(text) {
+  const bytes = new TextEncoder().encode(text);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(hashBuffer)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function openTab(tabId) {
@@ -398,7 +483,7 @@ function renderPostCard(post) {
   const dateText = formatDate(post.createdAt);
   const isOpen = state.selectedPostId === post.id;
   const commentButtonText = isOpen ? "댓글 닫기" : "댓글 보기";
-  const commentsPanel = isOpen ? renderCommentsPanel(post.id) : "";
+  const commentsPanel = isOpen ? renderCommentsPanel(post) : "";
 
   if (post.kind === "lost") {
     return `
@@ -437,31 +522,60 @@ function renderPostCard(post) {
   `;
 }
 
-function renderCommentsPanel(postId) {
+function renderCommentsPanel(post) {
+  const commentCounts = getCommentAuthorCounts();
   const commentsHtml = state.comments.length === 0
     ? '<p class="empty-comments">아직 댓글이 없습니다.</p>'
-    : state.comments.map(renderComment).join("");
+    : state.comments.map((comment) => renderComment(comment, post.authorKey, commentCounts)).join("");
 
   return `
     <section class="comments-panel" aria-label="댓글 영역">
       <h4>댓글</h4>
       <div class="comments-list">${commentsHtml}</div>
-      <form class="comment-form" data-post-id="${escapeHtml(postId)}">
+      <form class="comment-form" data-post-id="${escapeHtml(post.id)}">
         <textarea name="comment" rows="3" maxlength="300" placeholder="댓글을 입력하세요." required></textarea>
+        <input type="password" name="commentPassword" minlength="4" maxlength="40" placeholder="댓글 삭제 비밀번호" required>
         <button type="submit" class="comment-submit">댓글 등록</button>
       </form>
     </section>
   `;
 }
 
-function renderComment(comment) {
+function renderComment(comment, postAuthorKey, commentCounts) {
+  const isPostAuthor = Boolean(comment.authorKey && postAuthorKey && comment.authorKey === postAuthorKey);
+  const isRepeatedAuthor = Boolean(comment.authorKey && commentCounts.get(comment.authorKey) > 1);
+  const dotStyle = isRepeatedAuthor ? ` style="background:${getAuthorColor(comment.authorKey)}"` : "";
+  const repeatedDot = isRepeatedAuthor ? `<span class="author-dot"${dotStyle} title="같은 작성자가 쓴 댓글"></span>` : "";
+  const authorBadge = isPostAuthor ? '<span class="author-badge">작성자</span>' : "";
+
   return `
-    <div class="comment-item">
+    <div class="comment-item" data-comment-id="${escapeHtml(comment.id)}">
+      <div class="comment-meta">
+        <div class="comment-markers">${repeatedDot}${authorBadge}</div>
+        <button type="button" class="comment-delete" data-action="delete-comment">댓글 삭제</button>
+      </div>
       <p>${escapeHtml(comment.content)}</p>
       <small>${formatDate(comment.createdAt)}</small>
     </div>
   `;
 }
+
+function getCommentAuthorCounts() {
+  const counts = new Map();
+  state.comments.forEach((comment) => {
+    if (!comment.authorKey) return;
+    counts.set(comment.authorKey, (counts.get(comment.authorKey) || 0) + 1);
+  });
+  return counts;
+}
+
+function getAuthorColor(authorKey) {
+  const colors = ["#2563eb", "#159947", "#dc2626", "#9333ea", "#0f766e", "#d97706", "#be123c"];
+  let sum = 0;
+  for (const char of authorKey) sum += char.charCodeAt(0);
+  return colors[sum % colors.length];
+}
+
 
 function formatDate(timestamp) {
   if (!timestamp || !timestamp.toDate) return "방금 전";
@@ -476,5 +590,4 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
-
 
