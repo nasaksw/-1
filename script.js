@@ -2,6 +2,9 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
+  doc,
+  getDocs,
   getFirestore,
   limit,
   onSnapshot,
@@ -21,7 +24,6 @@ const firebaseConfig = {
   measurementId: "G-0RHDNLG9HX"
 };
 
-
 const gwangjuDistricts = {
   "동구": ["충장동", "동명동", "계림동", "산수동", "지산동", "서남동", "학동", "지원동"],
   "서구": ["양동", "농성동", "광천동", "유덕동", "치평동", "상무동", "화정동", "서창동", "금호동", "풍암동", "동천동"],
@@ -32,8 +34,11 @@ const gwangjuDistricts = {
 
 const state = {
   posts: [],
+  comments: [],
+  selectedPostId: null,
   currentFilter: "all",
-  firestoreReady: false
+  firestoreReady: false,
+  commentsUnsubscribe: null
 };
 
 const elements = {
@@ -61,6 +66,8 @@ function bindEvents() {
   elements.foundGu.addEventListener("change", () => updateDongSelect(elements.foundGu, elements.foundDong));
   elements.lostForm.addEventListener("submit", addLostPost);
   elements.foundForm.addEventListener("submit", addFoundPost);
+  elements.boardList.addEventListener("click", handleBoardClick);
+  elements.boardList.addEventListener("submit", handleBoardSubmit);
 
   document.querySelectorAll(".tab-btn").forEach((button) => {
     button.addEventListener("click", () => openTab(button.dataset.tab));
@@ -103,8 +110,8 @@ function connectFirebase() {
 
   try {
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    state.postsRef = collection(db, "posts");
+    state.db = getFirestore(app);
+    state.postsRef = collection(state.db, "posts");
     state.firestoreReady = true;
     elements.statusText.textContent = "Firebase 연결 중";
 
@@ -112,8 +119,13 @@ function connectFirebase() {
     onSnapshot(
       postsQuery,
       (snapshot) => {
-        state.posts = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        state.posts = snapshot.docs.map((postDoc) => ({ id: postDoc.id, ...postDoc.data() }));
         elements.statusText.textContent = `게시글 ${state.posts.length}개`;
+
+        if (state.selectedPostId && !state.posts.some((post) => post.id === state.selectedPostId)) {
+          closeComments();
+        }
+
         renderBoard();
       },
       (error) => {
@@ -205,6 +217,132 @@ async function savePost(button, post, form, guSelect, dongSelect) {
   }
 }
 
+function handleBoardClick(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+
+  const postId = button.closest(".card")?.dataset.postId;
+  if (!postId) return;
+
+  if (button.dataset.action === "toggle-comments") {
+    toggleComments(postId);
+  }
+
+  if (button.dataset.action === "delete-post") {
+    deletePost(postId);
+  }
+}
+
+function handleBoardSubmit(event) {
+  if (!event.target.matches(".comment-form")) return;
+  event.preventDefault();
+  addComment(event.target);
+}
+
+function toggleComments(postId) {
+  if (state.selectedPostId === postId) {
+    closeComments();
+    renderBoard();
+    return;
+  }
+
+  openComments(postId);
+}
+
+function openComments(postId) {
+  if (!state.firestoreReady) {
+    alert("Firebase 설정을 먼저 확인해주세요.");
+    return;
+  }
+
+  closeComments();
+  state.selectedPostId = postId;
+  state.comments = [];
+  renderBoard();
+
+  const commentsRef = collection(state.db, "posts", postId, "comments");
+  const commentsQuery = query(commentsRef, orderBy("createdAt", "asc"), limit(100));
+  state.commentsUnsubscribe = onSnapshot(
+    commentsQuery,
+    (snapshot) => {
+      state.comments = snapshot.docs.map((commentDoc) => ({ id: commentDoc.id, ...commentDoc.data() }));
+      renderBoard();
+    },
+    (error) => {
+      console.error(error);
+      state.comments = [];
+      alert("댓글을 불러오지 못했습니다. Firebase 권한을 확인해주세요.");
+      renderBoard();
+    }
+  );
+}
+
+function closeComments() {
+  if (state.commentsUnsubscribe) {
+    state.commentsUnsubscribe();
+  }
+
+  state.commentsUnsubscribe = null;
+  state.selectedPostId = null;
+  state.comments = [];
+}
+
+async function addComment(form) {
+  const postId = form.dataset.postId;
+  const input = form.querySelector("textarea");
+  const button = form.querySelector("button");
+  const content = input.value.trim();
+
+  if (!content) {
+    alert("댓글 내용을 입력해주세요.");
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "등록 중...";
+
+  try {
+    await addDoc(collection(state.db, "posts", postId, "comments"), {
+      content,
+      createdAt: serverTimestamp()
+    });
+    form.reset();
+  } catch (error) {
+    console.error(error);
+    alert("댓글 등록 중 오류가 발생했습니다. Firebase 권한을 확인해주세요.");
+  } finally {
+    button.disabled = false;
+    button.textContent = "댓글 등록";
+  }
+}
+
+async function deletePost(postId) {
+  if (!state.firestoreReady) {
+    alert("Firebase 설정을 먼저 확인해주세요.");
+    return;
+  }
+
+  const post = state.posts.find((item) => item.id === postId);
+  if (!post) return;
+
+  const ok = confirm("이 게시글과 댓글을 삭제할까요?");
+  if (!ok) return;
+
+  try {
+    const commentsRef = collection(state.db, "posts", postId, "comments");
+    const commentsSnapshot = await getDocs(commentsRef);
+    await Promise.all(commentsSnapshot.docs.map((commentDoc) => deleteDoc(commentDoc.ref)));
+    await deleteDoc(doc(state.db, "posts", postId));
+
+    if (state.selectedPostId === postId) {
+      closeComments();
+    }
+  } catch (error) {
+    console.error(error);
+    alert("삭제 중 오류가 발생했습니다. Firebase 권한을 확인해주세요.");
+  }
+}
+
 function openTab(tabId) {
   document.querySelectorAll(".tab-content").forEach((tab) => tab.classList.remove("active"));
   document.querySelectorAll(".tab-btn").forEach((button) => {
@@ -235,27 +373,70 @@ function renderBoard() {
 
 function renderPostCard(post) {
   const dateText = formatDate(post.createdAt);
+  const isOpen = state.selectedPostId === post.id;
+  const commentButtonText = isOpen ? "댓글 닫기" : "댓글 보기";
+  const commentsPanel = isOpen ? renderCommentsPanel(post.id) : "";
 
   if (post.kind === "lost") {
     return `
-      <article class="card lost">
-        <span class="card-badge">분실</span>
+      <article class="card lost" data-post-id="${escapeHtml(post.id)}">
+        <div class="card-topline">
+          <span class="card-badge">분실</span>
+          <div class="card-actions">
+            <button type="button" class="small-btn" data-action="toggle-comments">${commentButtonText}</button>
+            <button type="button" class="small-btn danger-btn" data-action="delete-post">삭제</button>
+          </div>
+        </div>
         <h3>광주광역시 ${escapeHtml(post.gu)} ${escapeHtml(post.dong)}</h3>
         <p><strong>설명:</strong> ${escapeHtml(post.info)}</p>
         <p class="reward">사례금 ${Number(post.reward || 0).toLocaleString()}원</p>
         <small>등록일: ${dateText}</small>
+        ${commentsPanel}
       </article>
     `;
   }
 
   return `
-    <article class="card found">
-      <span class="card-badge">습득</span>
+    <article class="card found" data-post-id="${escapeHtml(post.id)}">
+      <div class="card-topline">
+        <span class="card-badge">습득</span>
+        <div class="card-actions">
+          <button type="button" class="small-btn" data-action="toggle-comments">${commentButtonText}</button>
+          <button type="button" class="small-btn danger-btn" data-action="delete-post">삭제</button>
+        </div>
+      </div>
       <h3>[${escapeHtml(post.type)}] ${escapeHtml(post.title)}</h3>
       <p><strong>습득 장소:</strong> 광주광역시 ${escapeHtml(post.gu)} ${escapeHtml(post.dong)}</p>
       <p><strong>상세 내용:</strong> ${escapeHtml(post.content)}</p>
       <small>등록일: ${dateText}</small>
+      ${commentsPanel}
     </article>
+  `;
+}
+
+function renderCommentsPanel(postId) {
+  const commentsHtml = state.comments.length === 0
+    ? '<p class="empty-comments">아직 댓글이 없습니다.</p>'
+    : state.comments.map(renderComment).join("");
+
+  return `
+    <section class="comments-panel" aria-label="댓글 영역">
+      <h4>댓글</h4>
+      <div class="comments-list">${commentsHtml}</div>
+      <form class="comment-form" data-post-id="${escapeHtml(postId)}">
+        <textarea name="comment" rows="3" maxlength="300" placeholder="댓글을 입력하세요." required></textarea>
+        <button type="submit" class="comment-submit">댓글 등록</button>
+      </form>
+    </section>
+  `;
+}
+
+function renderComment(comment) {
+  return `
+    <div class="comment-item">
+      <p>${escapeHtml(comment.content)}</p>
+      <small>${formatDate(comment.createdAt)}</small>
+    </div>
   `;
 }
 
@@ -272,4 +453,3 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
-

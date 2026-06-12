@@ -51,6 +51,7 @@ body {
 h1,
 h2,
 h3,
+h4,
 p {
   overflow-wrap: anywhere;
 }
@@ -78,7 +79,9 @@ h1 {
 
 .tab-btn,
 .filter-btn,
-.submit-btn {
+.submit-btn,
+.small-btn,
+.comment-submit {
   min-height: 44px;
   border: 0;
   border-radius: 6px;
@@ -168,7 +171,8 @@ select:focus {
   background: #0f7d39;
 }
 
-.submit-btn:disabled {
+.submit-btn:disabled,
+.comment-submit:disabled {
   cursor: wait;
   opacity: 0.7;
 }
@@ -234,11 +238,25 @@ select:focus {
   border-left-color: var(--success);
 }
 
+.card-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .card-badge {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  margin-bottom: 10px;
   padding: 3px 8px;
   border-radius: 4px;
   color: #ffffff;
@@ -252,6 +270,31 @@ select:focus {
 
 .card.found .card-badge {
   background: var(--success);
+}
+
+.small-btn {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #c6ceda;
+  color: #334155;
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.small-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.danger-btn {
+  color: var(--danger);
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
+.danger-btn:hover {
+  color: #ffffff;
+  border-color: var(--danger);
+  background: var(--danger);
 }
 
 .card h3 {
@@ -274,6 +317,61 @@ select:focus {
   display: block;
   margin-top: 10px;
   color: var(--muted);
+}
+
+.comments-panel {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.comments-panel h4 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.comments-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.comment-item {
+  padding: 10px 12px;
+  border: 1px solid #e1e6ee;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.comment-item p {
+  margin: 0;
+}
+
+.comment-item small {
+  margin-top: 6px;
+}
+
+.empty-comments {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.comment-form {
+  display: grid;
+  gap: 8px;
+}
+
+.comment-submit {
+  justify-self: end;
+  min-height: 38px;
+  padding: 8px 14px;
+  color: #ffffff;
+  background: var(--primary);
+}
+
+.comment-submit:hover {
+  background: var(--primary-dark);
 }
 
 .empty-msg,
@@ -306,12 +404,23 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
-  .board-heading {
+  .board-heading,
+  .card-topline {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .status-text {
     white-space: normal;
+  }
+
+  .card-actions,
+  .comment-submit {
+    width: 100%;
+  }
+
+  .small-btn,
+  .comment-submit {
+    width: 100%;
   }
 }
