@@ -37,6 +37,7 @@ const state = {
   comments: [],
   selectedPostId: null,
   currentFilter: "all",
+  searchQuery: "",
   firestoreReady: false,
   commentsUnsubscribe: null
 };
@@ -49,7 +50,8 @@ const elements = {
   lostGu: document.getElementById("lostGu"),
   lostDong: document.getElementById("lostDong"),
   foundGu: document.getElementById("foundGu"),
-  foundDong: document.getElementById("foundDong")
+  foundDong: document.getElementById("foundDong"),
+  searchInput: document.getElementById("searchInput")
 };
 
 initPage();
@@ -68,6 +70,7 @@ function bindEvents() {
   elements.foundForm.addEventListener("submit", addFoundPost);
   elements.boardList.addEventListener("click", handleBoardClick);
   elements.boardList.addEventListener("submit", handleBoardSubmit);
+  elements.searchInput.addEventListener("input", handleSearchInput);
 
   document.querySelectorAll(".tab-btn").forEach((button) => {
     button.addEventListener("click", () => openTab(button.dataset.tab));
@@ -360,15 +363,35 @@ function filterBoard(type) {
   renderBoard();
 }
 
+function handleSearchInput(event) {
+  state.searchQuery = event.target.value.trim().toLowerCase();
+  renderBoard();
+}
+
 function renderBoard() {
-  const filteredPosts = state.posts.filter((post) => state.currentFilter === "all" || post.kind === state.currentFilter);
+  const filteredPosts = state.posts.filter((post) => {
+    const matchesType = state.currentFilter === "all" || post.kind === state.currentFilter;
+    const matchesSearch = !state.searchQuery || getPostSearchText(post).includes(state.searchQuery);
+    return matchesType && matchesSearch;
+  });
 
   if (filteredPosts.length === 0) {
-    elements.boardList.innerHTML = '<p class="empty-msg">등록된 게시글이 없습니다.</p>';
+    const message = state.searchQuery
+      ? `"${escapeHtml(state.searchQuery)}" 검색 결과가 없습니다.`
+      : "등록된 게시글이 없습니다.";
+    elements.boardList.innerHTML = `<p class="empty-msg">${message}</p>`;
     return;
   }
 
   elements.boardList.innerHTML = filteredPosts.map(renderPostCard).join("");
+}
+
+function getPostSearchText(post) {
+  if (post.kind === "lost") {
+    return [post.gu, post.dong, post.info].join(" ").toLowerCase();
+  }
+
+  return [post.gu, post.dong, post.type, post.title, post.content].join(" ").toLowerCase();
 }
 
 function renderPostCard(post) {
@@ -453,3 +476,5 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
+

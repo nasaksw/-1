@@ -217,6 +217,17 @@ select:focus {
   background: var(--text);
 }
 
+.board-search {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.board-search label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .board-list {
   display: grid;
   gap: 14px;
@@ -424,3 +435,4 @@ select:focus {
     width: 100%;
   }
 }
+
